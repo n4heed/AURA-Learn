@@ -3,6 +3,7 @@
 import { ChevronDown, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { INTEREST_OPTIONS } from "@/components/student/interests";
+import { createThemeLoadState, loadTheme, type ThemeChoice, type ThemeLoadState } from "@/lib/ai/themeLoader";
 import type { RethemeResult, ThemeSourceKind } from "@/lib/ai/types";
 import type { Interest } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import { QuantityText } from "./QuantityText";
 import { requestRetheme } from "./rethemeClient";
 import { SourceBadge } from "./SourceBadge";
 
-export type ThemeChoice = Interest | "original";
+export type { ThemeChoice };
 export interface ThemeInfo { interest: Interest; source: ThemeSourceKind }
 
 interface Props {
@@ -50,32 +51,16 @@ export function ThemedStem({ questionId, originalStem, interests, onResolved, on
   const [result, setResult] = useState<RethemeResult | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
-  const cache = useRef(new Map<string, RethemeResult>());
-  const ticket = useRef(0);
+  const state = useRef<ThemeLoadState>(createThemeLoadState());
 
   // Pick up the saved choice after mount (sessionStorage is not available during server render).
   useEffect(() => { setChoice(readChoice(interests)); }, [interests]);
 
-  const load = useCallback(async (c: ThemeChoice) => {
-    const id = ++ticket.current;
-    if (c === "original") {
-      setResult(null); setPhase("ready"); setError(""); onResolved?.(null);
-      return;
-    }
-    const hit = cache.current.get(`${questionId}:${c}`);
-    if (hit) { setResult(hit); setPhase("ready"); setError(""); onResolved?.({ interest: c, source: hit.source }); return; }
-    setPhase("loading"); setError(""); onBusyChange?.(true);
-    try {
-      const r = await requestRetheme({ questionId, interest: c }, { timeoutMs: WAIT_MS });
-      if (id !== ticket.current) return; // a newer request replaced this one
-      cache.current.set(`${questionId}:${c}`, r);
-      setResult(r); setPhase("ready"); onBusyChange?.(false); onResolved?.({ interest: c, source: r.source });
-    } catch (e) {
-      if (id !== ticket.current) return;
-      setResult(null); setPhase("error"); onBusyChange?.(false); onResolved?.(null);
-      setError(e instanceof DOMException && e.name === "AbortError" ? "Theming took too long." : "Couldn't theme this question.");
-    }
-  }, [questionId, onResolved, onBusyChange]);
+  const load = useCallback((c: ThemeChoice) => loadTheme(
+    questionId, c, state.current,
+    (args) => requestRetheme({ questionId: args.questionId, interest: args.interest }, { timeoutMs: WAIT_MS }),
+    { onPhase: setPhase, onResult: setResult, onError: setError, onBusyChange: (b) => onBusyChange?.(b), onResolved: (info) => onResolved?.(info) },
+  ), [questionId, onResolved, onBusyChange]);
 
   // If this component goes away mid-request, never leave the parent waiting.
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);

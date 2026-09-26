@@ -58,7 +58,9 @@ export function nextQuestion(store: Store, studentId: string, topicId: string, e
   // A fresh serve restarts the clock for this question.
   store.serves = store.serves.filter((s) => !(s.studentId === studentId && s.questionId === q.id));
   upsertServe(store, studentId, q.id, now);
-  return { question: toPublic(q), level: topic.level };
+  // pickQuestion only returns an already-shown id once every fresh option at a workable level is used up
+  // (see its own priority comment) — surface that here so the UI can say so instead of repeating silently.
+  return { question: toPublic(q), level: topic.level, repeat: exclude.includes(q.id) };
 }
 
 export function getHint(store: Store, studentId: string, questionId: string, now = new Date()) {
