@@ -18,16 +18,18 @@ interface Context {
   at: string;
   /** A place for chemistry questions. */
   lab: string;
+  /** A short setting that can safely frame a conceptual multiple-choice question. */
+  mcq: string;
 }
 
 const CONTEXTS: Record<Interest, Context> = {
-  space: { setup: "Imagine", circuit: "a spacecraft instrument", at: "operating at", lab: "an astronaut chemist's lab on a space station" },
-  sports: { setup: "Picture", circuit: "a stadium scoreboard", at: "powered by", lab: "a sports-drink testing lab" },
-  gaming: { setup: "Picture", circuit: "a gaming console", at: "running on", lab: "a chemistry mini-game" },
-  animals: { setup: "Imagine", circuit: "a wildlife camera trap", at: "powered by", lab: "a veterinary lab" },
-  technology: { setup: "Picture", circuit: "a robot's sensor board", at: "running at", lab: "a battery-testing lab" },
-  environment: { setup: "Imagine", circuit: "a solar-powered weather station", at: "powered by", lab: "a river-water testing station" },
-  art: { setup: "Picture", circuit: "an LED art installation", at: "glowing at", lab: "a paint-mixing studio" },
+  space: { setup: "Imagine", circuit: "a spacecraft instrument", at: "operating at", lab: "an astronaut chemist's lab on a space station", mcq: "During a space-mission briefing," },
+  sports: { setup: "Picture", circuit: "a stadium scoreboard", at: "powered by", lab: "a sports-drink testing lab", mcq: "During a team training briefing," },
+  gaming: { setup: "Picture", circuit: "a gaming console", at: "running on", lab: "a chemistry mini-game", mcq: "In a game-design challenge," },
+  animals: { setup: "Imagine", circuit: "a wildlife camera trap", at: "powered by", lab: "a veterinary lab", mcq: "At a wildlife-care station," },
+  technology: { setup: "Picture", circuit: "a robot's sensor board", at: "running at", lab: "a battery-testing lab", mcq: "In a device-testing lab," },
+  environment: { setup: "Imagine", circuit: "a solar-powered weather station", at: "powered by", lab: "a river-water testing station", mcq: "At an environmental monitoring station," },
+  art: { setup: "Picture", circuit: "an LED art installation", at: "glowing at", lab: "a paint-mixing studio", mcq: "In an interactive art studio," },
 };
 
 type Vars = Record<string, number>;
@@ -74,13 +76,14 @@ const SCENES: Record<string, Scene> = {
   "Multi-step: analyse a titration result": (v, c) => `In ${c.lab}, a 25.0 mL sample of NaOH solution needs ${v.V} mL of 0.100 M HCl to reach the endpoint. What is the concentration of the NaOH, in mol/L?`,
 };
 
-/** True when a deterministic theme exists for this question. MCQ concept questions are left in their original wording. */
+/** True when a deterministic theme exists for this question. Both numeric and MCQ questions are covered. */
 export function hasScene(q: Pick<Question, "type" | "objective">): boolean {
-  return q.type === "numeric" && q.objective in SCENES;
+  return q.type === "mcq" || q.objective in SCENES;
 }
 
 /** The deterministic themed stem, or null if there is none. Never changes numbers or the question asked. */
-export function sceneFor(q: Pick<Question, "type" | "objective" | "variables">, interest: Interest): string | null {
+export function sceneFor(q: Pick<Question, "type" | "objective" | "variables" | "stem">, interest: Interest): string | null {
+  if (q.type === "mcq") return `${CONTEXTS[interest].mcq} ${q.stem}`.replace(/\s+/g, " ").trim();
   if (!hasScene(q) || !q.variables) return null;
   return SCENES[q.objective](q.variables, CONTEXTS[interest]).replace(/\s+/g, " ").trim();
 }
