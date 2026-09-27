@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, FlaskConical, HandHelping, Link2, PlayCircle, ShieldAlert, User } from "lucide-react";
+import { Eye, PlayCircle, ShieldAlert, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
@@ -11,10 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { facilitatorStatusLabel, timeAgo } from "@/lib/format";
 import type { FacilitatorAction } from "@/lib/intervention";
 import type { QueueItem } from "@/lib/facilitator";
-import type { InterventionActionKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const ICON: Record<InterventionActionKind, typeof Link2> = { simpler: Link2, prerequisite: Link2, lab: FlaskConical, facilitator: HandHelping };
 
 /**
  * One active case in the facilitator queue. WHO / WHY / WHAT NEXT, plus the facilitator's own
@@ -25,8 +22,6 @@ export function InterventionQueueCard({ item }: { item: QueueItem }) {
   const toast = useToast();
   const [busy, setBusy] = useState<FacilitatorAction | null>(null);
   const urgent = item.severity === "immediate";
-  const resource = item.actions.find((a) => a.href && a.kind !== "facilitator");
-  const ResourceIcon = resource ? ICON[resource.kind] : null;
 
   async function act(action: FacilitatorAction) {
     if (busy) return; // one action in flight at a time — prevents a second click firing a concurrent transition
@@ -35,7 +30,7 @@ export function InterventionQueueCard({ item }: { item: QueueItem }) {
       const res = await fetch(`/api/interventions/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
-      toast.success(action === "resolve" ? "Case resolved" : action === "start" ? "Marked as helping" : "Marked as reviewed", `${item.studentName} will see this next time they open AURA.`);
+      toast.success(action === "resolve" ? "Case resolved" : action === "assign" ? "Refresher assigned" : action === "start" ? "Marked as helping" : "Marked as reviewed", `${item.studentName} will see this next time they open AURA.`);
       router.refresh();
     } catch (e) {
       toast.error("Couldn't update this case", e instanceof Error ? e.message : "Please try again.");
@@ -75,15 +70,12 @@ export function InterventionQueueCard({ item }: { item: QueueItem }) {
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line/60 pt-4">
         <Button href={`/facilitator/students/${item.studentId}`} variant="secondary" size="sm" iconLeft={<User className="size-4" />}>View student</Button>
-        {resource && ResourceIcon && (
-          <Button href={resource.href} variant="secondary" size="sm" iconLeft={<ResourceIcon className="size-4" />}>{resource.label}</Button>
-        )}
         <span className="flex-1" />
         {(item.status === "recommended" || item.status === "detected") && (
           <Button variant="ghost" size="sm" disabled={!!busy} loading={busy === "review"} onClick={() => act("review")} iconLeft={<Eye className="size-4" />}>Mark reviewed</Button>
         )}
         {item.status === "viewed" && (
-          <Button variant="soft" size="sm" disabled={!!busy} loading={busy === "start"} onClick={() => act("start")} iconLeft={<PlayCircle className="size-4" />}>Start helping</Button>
+          <Button variant="soft" size="sm" disabled={!!busy} loading={busy === "assign"} onClick={() => act("assign")} iconLeft={<PlayCircle className="size-4" />}>Assign refresher</Button>
         )}
         <Button variant="primary" size="sm" disabled={!!busy} loading={busy === "resolve"} onClick={() => act("resolve")} iconLeft={<ShieldAlert className="size-4" />}>Mark resolved</Button>
       </div>
