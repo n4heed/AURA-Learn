@@ -1,9 +1,8 @@
 "use client";
 
-import { ChevronDown, LogOut, RotateCcw } from "lucide-react";
+import { CircleUserRound, ChevronDown, LogOut, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +67,9 @@ export function UserMenu({ name, subtitle }: UserMenuProps) {
         aria-label={`Account menu for ${name}`}
         className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition hover:bg-subtle"
       >
-        <Avatar name={name} size="sm" />
+        <span className="grid size-8 place-items-center rounded-full bg-subtle text-muted" aria-hidden>
+          <CircleUserRound className="size-5" />
+        </span>
         <ChevronDown className={cn("size-4 text-faint transition", open && "rotate-180")} aria-hidden />
       </button>
 
@@ -78,7 +79,9 @@ export function UserMenu({ name, subtitle }: UserMenuProps) {
           className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 animate-pop rounded-2xl border border-line bg-surface p-2 shadow-pop"
         >
           <div className="flex items-center gap-3 px-3 py-3">
-            <Avatar name={name} />
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-subtle text-muted" aria-hidden>
+              <CircleUserRound className="size-6" />
+            </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{name}</p>
               <p className="truncate text-xs text-muted">{subtitle}</p>
