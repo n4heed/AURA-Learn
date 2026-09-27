@@ -13,6 +13,11 @@ export const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 export interface SessionPayload {
   uid: string;
   role: Role;
+  /** Demo accounts live in the seeded store; external accounts are verified by Supabase at sign-in. */
+  source?: "demo" | "supabase";
+  /** Signed display data lets an external account survive a demo-store reset. */
+  name?: string;
+  email?: string;
   /** Expiry, unix seconds. */
   exp: number;
 }
