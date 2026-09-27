@@ -68,9 +68,14 @@ export function InterventionCard({ intervention: iv, topicName, blocksName, onSi
       </div>
 
       <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+        {iv.assignedAction?.href && (
+          <Button href={iv.assignedAction.href} variant="primary" className="justify-start sm:col-span-2" iconLeft={<Check className="size-4" />}>
+            Your facilitator assigned: {iv.assignedAction.label}
+          </Button>
+        )}
         {iv.actions.map((a, i) => {
           const Icon = ICON[a.kind];
-          const primary = a.kind === "prerequisite";
+          const primary = a.kind === "prerequisite" && !iv.assignedAction;
           if (a.kind === "facilitator") {
             return (
               <Button key={a.kind} variant="secondary" disabled={asked} loading={busy} className="justify-start" iconLeft={asked ? <Check className="size-4 text-success" /> : <Icon className="size-4" />} onClick={askFacilitator}>
@@ -85,7 +90,7 @@ export function InterventionCard({ intervention: iv, topicName, blocksName, onSi
         })}
       </div>
 
-      <p className="t-small mt-4">{interventionStatusLabel(iv.status, asked)}</p>
+      <p className="t-small mt-4">{interventionStatusLabel(iv.status, asked, !!iv.assignedAction)}</p>
     </section>
   );
 }
