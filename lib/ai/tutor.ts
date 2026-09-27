@@ -67,10 +67,38 @@ const HINT_TEMPLATES: Record<number, (topic: string, formula?: string) => string
   3: (topic, formula) => `Rearrange${formula ? ` ${formula}` : " the formula"} to isolate what the question is asking for, then substitute the numbers you have.`,
 };
 
-function deterministicMessage(ctx: TutorContext, mode: TutorMode, decision: StrategyDecision): TutorCandidate {
+const EXPLANATION_ANGLES = [
+  (topic: string, coreIdea: string, formula?: string) => formula
+    ? `Try a relationship-first view of ${topic}. ${coreIdea} Use ${formula} as a map: identify what each symbol represents, then decide which part of the relationship helps you answer the question.`
+    : `Try a relationship-first view of ${topic}. ${coreIdea} Identify the relationship in the question before deciding which response fits it.`,
+  (topic: string, coreIdea: string) => `Try a cause-and-effect view of ${topic}. ${coreIdea} Ask yourself what would change if each part of the situation increased or decreased, then compare that prediction with the choices.`,
+  (topic: string, coreIdea: string, formula?: string) => `Try breaking ${topic} into roles. ${coreIdea} Sort the information into what is known, what is changing, and what the question wants;${formula ? ` then use ${formula} to connect those roles.` : " then use that structure to test each choice."}`,
+  (topic: string, coreIdea: string) => `Try explaining ${topic} in plain language first. ${coreIdea} Once the idea makes sense in words, the calculation or choice should follow from the meaning rather than from guessing.`,
+  (topic: string, coreIdea: string) => `Try an elimination view of ${topic}. ${coreIdea} Check each possible response against the relationship described in the question and set aside anything that does not match it.`,
+  (topic: string, coreIdea: string, formula?: string) => `Try moving between words and symbols for ${topic}. ${coreIdea}${formula ? ` Read ${formula} as a sentence about how the quantities connect, then return to the question with that sentence in mind.` : " Restate the relationship in your own words, then use it to reason through the question."}`,
+];
+
+function deterministicMessage(ctx: TutorContext, mode: TutorMode, decision: StrategyDecision, explanationVariation = 0): TutorCandidate {
   const topic = ctx.topicName;
   const formula = ctx.lesson?.formula?.expr;
   let message: string;
+
+  // This button must be useful even when no live AI provider is configured. Put it ahead of the
+  // strategy-specific template so the learner receives a genuinely different angle from the
+  // proactive feedback they just saw, without exposing the answer.
+  if (mode === "explain") {
+    // A topic name, lesson summary, or formula can itself be the exact MCQ answer. Use a neutral
+    // framing for those questions so refreshing an explanation can never disclose an option.
+    const isMcq = ctx.question?.type === "mcq";
+    const safeTopic = isMcq ? "the idea in this question" : topic;
+    const coreIdea = isMcq
+      ? "Focus on the relationship the question describes, then compare each option with that relationship."
+      : ctx.lesson?.bigIdea ?? `${topic} is about the relationship between the quantities in the question.`;
+    const safeFormula = isMcq ? undefined : formula;
+    const angle = EXPLANATION_ANGLES[Math.abs(explanationVariation) % EXPLANATION_ANGLES.length] ?? EXPLANATION_ANGLES[0];
+    message = angle(safeTopic, coreIdea, safeFormula);
+    return { type: "explanation", message, nextAction: decision.nextAction };
+  }
 
   switch (decision.strategy) {
     case "prerequisite": {
@@ -106,16 +134,14 @@ function deterministicMessage(ctx: TutorContext, mode: TutorMode, decision: Stra
       break;
     case "socratic":
     default:
-      message = mode === "explain"
-        ? (ctx.lesson?.bigIdea ?? `${topic} is worth reviewing conceptually before the next attempt.`)
-        : `One miss isn't a pattern yet — want to try again, or would a small hint help?`;
+      message = `One miss isn't a pattern yet — want to try again, or would a small hint help?`;
       break;
   }
 
   return { type: decision.responseType, message, nextAction: decision.nextAction };
 }
 
-export async function generateTutorResponse(ctx: TutorContext, mode: TutorMode, deps: TutorDeps, studentMessage?: string): Promise<TutorResult> {
+export async function generateTutorResponse(ctx: TutorContext, mode: TutorMode, deps: TutorDeps, studentMessage?: string, explanationVariation = 0): Promise<TutorResult> {
   const decision = decideTutorStrategy(ctx, mode);
   const signals = {
     mastery: ctx.mastery.score, masteryBand: ctx.mastery.band, struggle: ctx.struggle.score, struggleLevel: ctx.struggle.level,
@@ -123,7 +149,7 @@ export async function generateTutorResponse(ctx: TutorContext, mode: TutorMode, 
   };
 
   const fallback = (fallbackReason: TutorResult["fallbackReason"]): TutorResult => {
-    const cand = deterministicMessage(ctx, mode, decision);
+    const cand = deterministicMessage(ctx, mode, decision, explanationVariation);
     return { ...cand, strategy: decision.strategy, source: "template", signals, fallbackReason };
   };
 
@@ -134,7 +160,7 @@ export async function generateTutorResponse(ctx: TutorContext, mode: TutorMode, 
   if (deps.limiter && !deps.limiter.allow(ctx.studentId)) return fallback("rate_limited");
 
   try {
-    const { text } = await deps.llm.complete(buildTutorMessages(ctx, mode, decision, studentMessage), { timeoutMs: deps.config.timeoutMs });
+    const { text } = await deps.llm.complete(buildTutorMessages(ctx, mode, decision, studentMessage, explanationVariation), { timeoutMs: deps.config.timeoutMs });
     deps.breaker?.success();
     const cand = parseTutorCandidate(text, decision.responseType, decision.nextAction);
     if (!cand) return fallback("invalid_response");

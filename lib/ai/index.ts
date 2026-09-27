@@ -60,11 +60,11 @@ export async function rethemeWithApp(input: RethemeInput): Promise<RethemeResult
   }
 }
 
-export async function tutorWithApp(ctx: TutorContext, mode: TutorMode, studentMessage?: string): Promise<TutorResult> {
+export async function tutorWithApp(ctx: TutorContext, mode: TutorMode, studentMessage?: string, explanationVariation = 0): Promise<TutorResult> {
   try {
     const config = readAiConfig();
     const { breaker, limiter } = shared(config);
-    const result = await generateTutorResponse(ctx, mode, { config, llm: llmFor(config), breaker, limiter }, studentMessage);
+    const result = await generateTutorResponse(ctx, mode, { config, llm: llmFor(config), breaker, limiter }, studentMessage, explanationVariation);
     if (process.env.NODE_ENV !== "production") {
       // Dev-only observability (PRD section 20). No prompts, no secrets, no free-text student message.
       console.log(
@@ -75,7 +75,7 @@ export async function tutorWithApp(ctx: TutorContext, mode: TutorMode, studentMe
     }
     return result;
   } catch {
-    return generateTutorResponse(ctx, mode, { config: { ...readAiConfig(), mode: "off" } });
+    return generateTutorResponse(ctx, mode, { config: { ...readAiConfig(), mode: "off" } }, studentMessage, explanationVariation);
   }
 }
 
