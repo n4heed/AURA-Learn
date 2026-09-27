@@ -82,9 +82,10 @@ export function describeWindow(current: Level, windowAttempts: Attempt[]): Level
 /**
  * Choose the next question.
  *  1. An unseen question at the student's level (not shown earlier this session).
- *  2. If the level is exhausted, the least recently seen question at the SAME level (never the one just shown),
- *     because repeating at the right difficulty beats jumping to the wrong one.
- *  3. Only if the level has no other questions, the nearest neighbouring level.
+ *  2. If that level is exhausted, an unseen question at the nearest level. This avoids recycling an
+ *     MCQ while the session still has fresh questions to show.
+ *  3. Only after the session has exhausted the topic bank, the least recently seen question is reused
+ *     (never the one just shown).
  * Within a pool, questions the student has never attempted come first, then the least recently attempted.
  */
 export function pickQuestion(opts: {
@@ -102,18 +103,19 @@ export function pickQuestion(opts: {
     [...pool].sort((a, b) => Number(lastSeen.has(a.id)) - Number(lastSeen.has(b.id)) || (lastSeen.get(a.id) ?? "").localeCompare(lastSeen.get(b.id) ?? "") || a.id.localeCompare(b.id));
 
   const just = exclude[exclude.length - 1];
-  const neighbours = [level, level - 1, level + 1, level - 2, level + 2].filter((l) => l >= 1 && l <= 4);
+  const shownThisSession = new Set(exclude);
+  const levels = ([1, 2, 3, 4] as Level[]).sort((a, b) => Math.abs(a - level) - Math.abs(b - level) || a - b);
 
-  for (const l of neighbours) {
+  // Prefer new material across the whole topic before repeating any card. In particular, an MCQ that
+  // has already appeared in this session cannot come back while another unseen question is available.
+  for (const l of levels) {
     const atLevel = questions.filter((q) => q.level === l);
-    const fresh = atLevel.filter((q) => !exclude.includes(q.id));
+    const fresh = atLevel.filter((q) => !shownThisSession.has(q.id));
     if (fresh.length) return order(fresh)[0];
-    if (l === level) {
-      const repeat = atLevel.filter((q) => q.id !== just);
-      if (repeat.length) return order(repeat)[0];
-    }
   }
-  return questions.find((q) => q.id !== just) ?? null;
+
+  const repeat = questions.filter((q) => q.id !== just);
+  return repeat.length ? order(repeat)[0] : questions[0] ?? null;
 }
 
 /** Grade a submitted answer. Numeric answers ignore units and whitespace. */
