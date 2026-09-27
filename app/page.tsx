@@ -1,19 +1,14 @@
-import { BrainCircuit, HandHeart, Route } from "lucide-react";
 import { redirect } from "next/navigation";
-import { LogoMark, Logo } from "@/components/brand/Logo";
+import { AuthPanel } from "@/components/auth/AuthPanel";
 import { DemoLoginCard, type DemoAccount } from "@/components/auth/DemoLoginCard";
+import { LearningLoopVisual } from "@/components/auth/LearningLoopVisual";
+import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getCurrentUser } from "@/lib/auth";
 import { listDemoAccounts } from "@/lib/repo";
 import { homeFor } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
-
-const pillars = [
-  { icon: Route, title: "A path built around you", text: "AURA maps what you know and unlocks what's next." },
-  { icon: BrainCircuit, title: "Examples in your world", text: "Space, sports, gaming. Same maths, your story." },
-  { icon: HandHeart, title: "A teacher when it counts", text: "AURA spots the struggle. A human steps in." },
-];
 
 export default async function LoginPage() {
   const current = await getCurrentUser();
@@ -27,7 +22,7 @@ export default async function LoginPage() {
   }));
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
+    <div className="grid min-h-dvh lg:grid-cols-[1.08fr_0.92fr]">
       {/* Brand panel */}
       <section className="relative overflow-hidden px-6 py-8 sm:px-10 lg:flex lg:flex-col lg:justify-between lg:px-16 lg:py-14">
         <div className="pointer-events-none absolute -left-40 -top-40 hidden size-[38rem] lg:block" aria-hidden>
@@ -53,19 +48,7 @@ export default async function LoginPage() {
           </p>
         </div>
 
-        <ul className="relative mt-10 hidden gap-4 lg:grid">
-          {pillars.map(({ icon: Icon, title, text }) => (
-            <li key={title} className="flex items-start gap-4">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">
-                <Icon className="size-5" aria-hidden />
-              </span>
-              <span>
-                <span className="block font-semibold">{title}</span>
-                <span className="t-small">{text}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <LearningLoopVisual />
       </section>
 
       {/* Sign-in panel */}
@@ -74,14 +57,15 @@ export default async function LoginPage() {
           <ThemeToggle />
         </div>
         <div className="enter w-full max-w-md">
-          <div className="mb-6 flex items-center gap-3">
-            <LogoMark className="size-9" />
-            <div>
-              <h2 className="t-heading text-xl">Jump into the demo</h2>
-              <p className="t-small">Pick who you want to be. No password needed.</p>
-            </div>
+          <AuthPanel />
+          <div className="my-7 flex items-center gap-3" aria-hidden>
+            <span className="h-px flex-1 bg-line" /><span className="text-xs font-medium uppercase tracking-[0.14em] text-faint">or explore</span><span className="h-px flex-1 bg-line" />
           </div>
-          <DemoLoginCard accounts={accounts} />
+          <details className="rounded-2xl border border-line bg-surface p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">Use a ready-made demo account</summary>
+            <p className="t-small mt-2">Try the complete student or facilitator flow without registering.</p>
+            <div className="mt-4"><DemoLoginCard accounts={accounts} /></div>
+          </details>
         </div>
       </section>
     </div>
