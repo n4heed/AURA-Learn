@@ -24,7 +24,7 @@ export interface TutorResponse {
 
 /** Browser-side call to our own API. The browser never talks to the model provider and never sees a key. */
 export async function askTutor(
-  body: { topicId: string; questionId?: string; mode: TutorMode; message?: string; displayedStem?: string },
+  body: { topicId: string; questionId?: string; mode: TutorMode; message?: string; displayedStem?: string; variation?: number },
   opts: { timeoutMs?: number } = {},
 ): Promise<TutorResponse> {
   const controller = new AbortController();

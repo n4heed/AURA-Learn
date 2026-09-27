@@ -39,14 +39,15 @@ export function TutorCoach({ topicId, questionId, displayedStem, proactiveTrigge
   const [error, setError] = useState("");
   const [dismissed, setDismissed] = useState(false);
   const ticket = useRef(0);
+  const explanationVariation = useRef(0);
 
-  async function ask(mode: TutorMode) {
+  async function ask(mode: TutorMode, message?: string, variation?: number) {
     const id = ++ticket.current;
     setLoading(true);
     setError("");
     setDismissed(false);
     try {
-      const r = await askTutor({ topicId, questionId, mode, displayedStem });
+      const r = await askTutor({ topicId, questionId, mode, displayedStem, message, variation });
       if (id === ticket.current) setResponse(r);
     } catch {
       if (id === ticket.current) setError("Couldn't reach your tutor right now.");
@@ -59,6 +60,15 @@ export function TutorCoach({ topicId, questionId, displayedStem, proactiveTrigge
   // "ask me anything": the student never has to think to request help.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (proactiveTrigger) void ask("review"); }, [proactiveTrigger]);
+
+  function refreshExplanation() {
+    explanationVariation.current += 1;
+    void ask(
+      "explain",
+      "Please use a fresh teaching angle rather than repeat the previous explanation.",
+      explanationVariation.current,
+    );
+  }
 
   if (!loading && !response && !error) return null;
   if (dismissed) return null;
@@ -87,7 +97,7 @@ export function TutorCoach({ topicId, questionId, displayedStem, proactiveTrigge
         <>
           <div className="flex flex-wrap items-center gap-2 border-t border-line/60 pt-3.5">
             <Button variant="secondary" size="sm" onClick={() => void ask("hint")} iconLeft={<Lightbulb className="size-4" />}>Give me a hint</Button>
-            <Button variant="secondary" size="sm" onClick={() => void ask("explain")} iconLeft={<MessagesSquare className="size-4" />}>Explain it differently</Button>
+            <Button variant="secondary" size="sm" onClick={refreshExplanation} iconLeft={<RotateCcw className="size-4" />}>Refresh explanation</Button>
             {response.nextAction === "learn_prerequisite" && onReviewConcept && (
               <Button variant="secondary" size="sm" onClick={onReviewConcept} iconLeft={<Compass className="size-4" />}>Review the concept</Button>
             )}
