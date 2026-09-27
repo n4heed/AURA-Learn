@@ -5,12 +5,12 @@ import { applyFacilitatorAction, type FacilitatorAction } from "@/lib/interventi
 
 export const dynamic = "force-dynamic";
 
-const ACTIONS: FacilitatorAction[] = ["review", "start", "resolve"];
+const ACTIONS: FacilitatorAction[] = ["review", "assign", "start", "resolve"];
 
 /**
  * A facilitator moves a case forward: review it, start helping, or resolve it.
  * Facilitator-only, enforced here (not just by hiding the buttons in the UI).
- * body: { action: "review" | "start" | "resolve", note?: string }
+ * body: { action: "review" | "assign" | "start" | "resolve", note?: string }
  */
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
