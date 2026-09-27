@@ -73,45 +73,31 @@ export function PracticeSession({ topicId, topicName, initialScore, initialLevel
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [history, setHistory] = useState<Answered[]>([]);
   const [unlocked, setUnlocked] = useState<{ id: string; name: string }[]>([]);
-  const [repeat, setRepeat] = useState(false);
   const [error, setError] = useState("");
   const [lockedMsg, setLockedMsg] = useState("");
   const startedAt = useRef(Date.now());
   const startScore = useRef(initialScore);
   const historyRef = useRef<Answered[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Reentrancy guards: a fetch or submission in flight must not be started a second time by a
-  // stray double-click or double-fire before the resulting state change disables the control.
-  const loadingRef = useRef(false);
-  const submittingRef = useRef(false);
 
   const loadNext = useCallback(async () => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
     setPhase("loading");
     setAnswer("");
     setHint(null);
     setHintsUsed(0);
     setResult(null);
-    setRepeat(false);
-    try {
-      // The full session history, not just a recent slice — otherwise a topic with more questions
-      // than the slice window would "forget" early ones and could repeat them while genuinely
-      // unseen questions still existed elsewhere in the bank.
-      const exclude = historyRef.current.map((h) => h.id).join(",");
-      const r = await api<{ question: PublicQuestion; level: Level; repeat: boolean }>(`/api/practice/next?topicId=${topicId}&exclude=${exclude}`);
-      if (!r.ok) {
-        if (r.code === "locked") { setLockedMsg(r.error); setPhase("locked"); } else { setError(r.error); setPhase("error"); }
-        return;
-      }
-      setQuestion(r.data.question);
-      setLevel(r.data.level);
-      setRepeat(r.data.repeat);
-      startedAt.current = Date.now();
-      setPhase("question");
-    } finally {
-      loadingRef.current = false;
+    // Keep every question from this open practice session out of the next request. The server uses
+    // this to avoid repeating MCQs until the learner has seen the rest of the topic bank.
+    const exclude = historyRef.current.map((h) => h.id).join(",");
+    const r = await api<{ question: PublicQuestion; level: Level }>(`/api/practice/next?topicId=${topicId}&exclude=${exclude}`);
+    if (!r.ok) {
+      if (r.code === "locked") { setLockedMsg(r.error); setPhase("locked"); } else { setError(r.error); setPhase("error"); }
+      return;
     }
+    setQuestion(r.data.question);
+    setLevel(r.data.level);
+    startedAt.current = Date.now();
+    setPhase("question");
   }, [topicId]);
 
   /** Re-attempt the SAME question the tutor is coaching on, instead of moving to a new one. */
@@ -146,38 +132,32 @@ export function PracticeSession({ topicId, topicName, initialScore, initialLevel
 
   async function submit(skipped = false) {
     if (!question || (!skipped && !answer.trim())) return;
-    if (submittingRef.current) return;
-    submittingRef.current = true;
     setPhase("checking");
-    try {
-      const r = await api<AttemptResult>("/api/attempts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId: question.id, answer, skipped, hintsUsed, timeTakenSec: (Date.now() - startedAt.current) / 1000, theme: themeInfo ?? undefined }),
-      });
-      if (!r.ok) {
-        if (r.code === "locked") { setLockedMsg(r.error); setPhase("locked"); } else { setError(r.error); setPhase("error"); }
-        return;
-      }
-      const d = r.data;
-      setResult(d);
-      setScore(d.mastery.after);
-      setLevel(d.level.after);
-      setStruggle({ score: d.struggle.after, level: d.struggle.level });
-      setIntervention(d.intervention);
-      // A brand-new or escalated case is always shown, even if the student hid the previous card.
-      if (d.intervention && (d.intervention.change === "created" || d.intervention.change === "escalated")) setHidden(false);
-      const next = [...historyRef.current, { id: question.id, correct: d.correct }];
-      historyRef.current = next;
-      setHistory(next);
-      if (d.unlocked.length) setUnlocked((cur) => [...cur, ...d.unlocked.filter((u) => !cur.some((c) => c.id === u.id))]);
-      setAttemptTick((n) => n + 1);
-      setPhase("feedback");
-      // Re-render the server-side parts of the page (mastery card, unlock list) with the new numbers.
-      router.refresh();
-    } finally {
-      submittingRef.current = false;
+    const r = await api<AttemptResult>("/api/attempts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questionId: question.id, answer, skipped, hintsUsed, timeTakenSec: (Date.now() - startedAt.current) / 1000, theme: themeInfo ?? undefined }),
+    });
+    if (!r.ok) {
+      if (r.code === "locked") { setLockedMsg(r.error); setPhase("locked"); } else { setError(r.error); setPhase("error"); }
+      return;
     }
+    const d = r.data;
+    setResult(d);
+    setScore(d.mastery.after);
+    setLevel(d.level.after);
+    setStruggle({ score: d.struggle.after, level: d.struggle.level });
+    setIntervention(d.intervention);
+    // A brand-new or escalated case is always shown, even if the student hid the previous card.
+    if (d.intervention && (d.intervention.change === "created" || d.intervention.change === "escalated")) setHidden(false);
+    const next = [...historyRef.current, { id: question.id, correct: d.correct }];
+    historyRef.current = next;
+    setHistory(next);
+    if (d.unlocked.length) setUnlocked((cur) => [...cur, ...d.unlocked.filter((u) => !cur.some((c) => c.id === u.id))]);
+    setAttemptTick((n) => n + 1);
+    setPhase("feedback");
+    // Re-render the server-side parts of the page (mastery card, unlock list) with the new numbers.
+    router.refresh();
   }
 
   const wrongStreak = history.slice(-2).length === 2 && history.slice(-2).every((h) => !h.correct);
@@ -243,10 +223,7 @@ export function PracticeSession({ topicId, topicName, initialScore, initialLevel
       {question && phase !== "loading" && (
         <Card padding="lg" className="enter" key={question.id}>
           <div className="mb-4 flex items-center justify-between">
-            <span className="flex items-center gap-2 t-eyebrow">
-              Question {history.length + (phase === "feedback" ? 0 : 1)}
-              {repeat && <span className="rounded-full bg-subtle px-2 py-0.5 text-xs font-medium normal-case text-muted">Reviewing — you've seen every fresh question at this level</span>}
-            </span>
+            <span className="t-eyebrow">Question {history.length + (phase === "feedback" ? 0 : 1)}</span>
             {phase === "question" && (
               <button type="button" onClick={() => void submit(true)} className="inline-flex items-center gap-1.5 text-sm text-muted transition hover:text-ink">
                 <SkipForward className="size-4" aria-hidden /> Skip
